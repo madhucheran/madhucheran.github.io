@@ -1,16 +1,45 @@
-name: Docker Image CI for GHCR
+name: Build, Push, and Deploy Docker Image
 
 on:
-  push
+  push:
+    branches:
+      - main
 
 jobs:
   build_and_publish:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Build and push the image
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u madhucheran --password-stdin
+
+      - name: Build and push the Docker image
         run: |
-          docker login --username madhucheran --password ${{secrets.GH_PAT}} ghcr.io
           docker build . --tag ghcr.io/madhucheran/mouseevent-ghcr:latest
           docker push ghcr.io/madhucheran/mouseevent-ghcr:latest
-          
+
+  deploy:
+    needs: build_and_publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u madhucheran --password-stdin
+
+      - name: Pull Docker image
+        run: docker pull ghcr.io/madhucheran/mouseevent-ghcr:latest
+
+      - name: Run Docker container
+        run: docker run -d -p 80:80 ghcr.io/madhucheran/mouseevent-ghcr:latest
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
